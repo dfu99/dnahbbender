@@ -11,32 +11,42 @@ changelog:
         whitespace removed from json.dump by adding separator options
 """
 import json
+import numpy as np
+from matplotlib import pyplot as plt
+import argparse
 
+AXIAL_RISE = 0.332
+INTERHELICAL_DISTANCE = 2.6
 
-def insertbase(data, strandnum, loc):
+def strandnum2idx(data, strandnum):
+    """
+    Returns the list index of the strand by its num
+    """
+    for idx, strand in data['vstrands']:
+        if strand['num'] == strandnum:
+            return idx
+
+def insertbase(data, strandidx, loc):
     """
     Edits a strand's 'loop' key to add insertions to the strand
-    # inputs data - json data of DNA bundle
-    #       strandnum - the strand number
-    #       loc - the base pair position to be edited
     :param data: json data of DNA bundle
-    :param strandnum: The strand index of the base
+    :param strandidx: The strand index
     :param loc: The index of the base
     :return: json-formated dict with modified data
     """
-    data['vstrands'][strandnum]['loop'][loc] = 1  # default 1 insertion
+    data['vstrands'][strandidx]['loop'][loc] = 1  # default 1 insertion
     return data
 
 
-def deletebase(data, strandnum, loc):
+def deletebase(data, strandidx, loc):
     """
     Edits a strand's 'skip' key to add deletions to the strand
     :param data: json data of DNA bundle
-    :param strandnum: The strand index of the base
+    :param strandidx: The strand index of the base
     :param loc: The index of the base
     :return: json-formated dict with modified data
     """
-    data['vstrands'][strandnum]['skip'][loc] = -1
+    data['vstrands'][strandidx]['skip'][loc] = -1
     return data
 
 
@@ -90,16 +100,133 @@ def distro(n, i, x):
     else:
         return []
 
+def calc_gradients(mystrands, align_axis=1, theta=0):
+    """
+    :param hb_locs: x-y coordinates of helical centers
+    :param align_axis: x or y normal plane
+    :param theta: angle of curvature
+    """
+    # Calculate the distance of each helix to the normal plane
+    # The normal plane is the mean between the min and max of the selected alignment axis
+    hb_locs = [strand['pos'] for strand in mystrands.values()]
+    hb_locs = np.array(hb_locs)
+    d = hb_locs[:, align_axis]
+    normal_plane = np.mean(d)
+
+    for key in mystrands.keys():
+        mystrands[key]['grad'] = round(np.radians(theta) * (mystrands['pos'][align_axis] - normal_plane) / AXIAL_RISE, 0)
+    
+    return mystrands
+
+def create_strands(template_data):
+    """
+    Convert the strands to a dictionary with col, row as keys
+    """
+    mystrands = {}
+    for i in range(len(template_data['vstrands'])):
+        this_strand = template_data['vstrands'][i]
+        mystrands[(this_strand['col'], this_strand['row'])] = {'strandnum': this_strand['num']}
+    return mystrands
+
+def cadnano2_to_xy(mystrands, template_data, lattice_type="honeycomb"):
+    # Set the root to start from
+    first_strand = template_data['vstrands'][0]
+    first_key = (first_strand['col'], first_strand['row'])
+    mystrands[first_key]['pos'] = np.array([0, 0])
+
+    # Set the positions of the other strands
+    # until all are defined
+    num_defined = 1
+    curr_key = first_key
+    new_keys = []
+    while num_defined < len(template_data['vstrands']):
+        if lattice_type == "honeycomb":
+            mod_key = (curr_key[0] + curr_key[1]) % 2
+            offsets = {0: [[0, -5.2], [0, 2.6], [2.25, -1.3], [-2.25, -1.3]], 1: [[0, -2.6], [0, 5.2], [2.25, 1.3], [-2.25, 1.3]]}
+        else: # square
+            mod_key = 0
+            offsets = {0: [[0, -2.6], [0, 2.6], [2.6, 0], [-2.6, 0]]}
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        # Enumerate each adjacent helix
+        for i, direction in enumerate(directions):
+            new_key = (curr_key[0] + direction[0], curr_key[1] + direction[1])
+            # If the new key is in the dictionary and the position is not defined
+            if new_key in mystrands and 'pos' not in mystrands[new_key]:
+                mystrands[new_key]['pos'] = mystrands[curr_key]['pos'] + np.array(offsets[mod_key][i])
+                num_defined += 1
+                new_keys.append(new_key) # build stack of new keys
+        curr_key = new_keys.pop(0) # pop the next key from the stack
+    return mystrands
+
+def plot_lattice(mystrands):
+    # Sample data structure
+    data = mystrands
+    # Create a new figure and axis
+    fig, ax = plt.subplots()
+
+    # Iterate through the dictionary
+    for item in data.values():
+        x, y = item['pos']
+        strandnum = item['strandnum']
+        
+        # Plot the point
+        ax.plot(x, y, 'o')
+        
+        # Add the text label
+        ax.text(x, y, strandnum, fontsize=9, ha='right', va='bottom')
+
+    # Set labels and title
+    ax.set_xlabel('X coordinate')
+    ax.set_ylabel('Y coordinate')
+    ax.set_title('Strand Positions')
+
+    # Adjust the plot layout
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+def main():
+    # Create parser
+    parser = argparse.ArgumentParser(description="Adding insertions and deletions into cadnano2 json file to bend a DNA bundle")
+
+    # Add arguments
+    parser.add_argument("filename", help="Input filename of cadnano2 json file")
+    parser.add_argument("output_filename", help="Output filename of cadnano2 json file")
+    parser.add_argument("lattice_type", help="Type of lattice, honeycomb or square")
+    parser.add_argument("angle", help="Desired bend angle")
+    parser.add_argument("bend_length", help="Length of bundle to add insertions/deletions")
+    parser.add_argument("bend_start", help="Column ID of the first base in the bend")
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Load the template data
+    template_data = jsondatafromfile(args.filename)
+
+    # Create the dictionary of strand positions
+    mystrands = create_strands(template_data)
+    # Convert the cadnano2 coordinates to x-y coordinates
+    mystrands = cadnano2_to_xy(mystrands, args.lattice_type)
+    # Get the edits
+    mystrands = calc_gradients(mystrands, theta=args.angle)
+
+    bendstarts = [int(args.bend_start)]
+
+    for bst in bendstarts:
+        for strand in mystrands.keys():
+            strandidx = strandnum2idx(template_data, strand['num'])
+            for pos in distro(args.bend_length, bst, abs(strand['grad'])):
+                if strand['grad'] < 0: # deletions
+                    template_data = deletebase(template_data, strandidx, pos)
+                else: # insertions
+                    template_data = insertbase(template_data, strandidx, pos)
+
+    datatojson(mystrands, args.output_filename)
 
 if __name__ == "__main__":
-    # Choose and import the tempalte
-    template_name = "templates/4hb-512.json"
-    template_data = jsondatafromfile(template_name)
-
-    # Copy data to new location
-    # (Isn't this useless because dict is mutable?)
-    new_data = template_data
-
+    main()
     # Set where bends will start
     bendstarts = [211]
 
