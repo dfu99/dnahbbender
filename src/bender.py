@@ -22,7 +22,7 @@ def strandnum2idx(data, strandnum):
     """
     Returns the list index of the strand by its num
     """
-    for idx, strand in data['vstrands']:
+    for idx, strand in enumerate(data['vstrands']):
         if strand['num'] == strandnum:
             return idx
 
@@ -77,9 +77,6 @@ def datatojson(write_data, filename):
 def distro(n, i, x):
     """
     selects evenly distributed points throughout a list
-    # N is the nt length of the section
-    # i is the starting base id
-    # x is the number of edits
     :param n: int, nt length of bend section
     :param i: int, index of first base starting the section
     :param x: int, number of elements to distribute
@@ -114,7 +111,7 @@ def calc_gradients(mystrands, align_axis=1, theta=0):
     normal_plane = np.mean(d)
 
     for key in mystrands.keys():
-        mystrands[key]['grad'] = round(np.radians(theta) * (mystrands['pos'][align_axis] - normal_plane) / AXIAL_RISE, 0)
+        mystrands[key]['grad'] = round(np.radians(theta) * (mystrands[key]['pos'][align_axis] - normal_plane) / AXIAL_RISE, 0)
     
     return mystrands
 
@@ -128,7 +125,7 @@ def create_strands(template_data):
         mystrands[(this_strand['col'], this_strand['row'])] = {'strandnum': this_strand['num']}
     return mystrands
 
-def cadnano2_to_xy(mystrands, template_data, lattice_type="honeycomb"):
+def cadnano2_to_xy(mystrands, template_data, lattice_type="hc"):
     # Set the root to start from
     first_strand = template_data['vstrands'][0]
     first_key = (first_strand['col'], first_strand['row'])
@@ -140,12 +137,14 @@ def cadnano2_to_xy(mystrands, template_data, lattice_type="honeycomb"):
     curr_key = first_key
     new_keys = []
     while num_defined < len(template_data['vstrands']):
-        if lattice_type == "honeycomb":
+        if lattice_type == "hc":
             mod_key = (curr_key[0] + curr_key[1]) % 2
             offsets = {0: [[0, -5.2], [0, 2.6], [2.25, -1.3], [-2.25, -1.3]], 1: [[0, -2.6], [0, 5.2], [2.25, 1.3], [-2.25, 1.3]]}
-        else: # square
+        elif lattice_type == "sq":
             mod_key = 0
             offsets = {0: [[0, -2.6], [0, 2.6], [2.6, 0], [-2.6, 0]]}
+        else:
+            raise ValueError("Invalid lattice type. Use 'hc' for honeycomb or 'sq' for square.")
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
         # Enumerate each adjacent helix
@@ -208,39 +207,21 @@ def main():
     # Create the dictionary of strand positions
     mystrands = create_strands(template_data)
     # Convert the cadnano2 coordinates to x-y coordinates
-    mystrands = cadnano2_to_xy(mystrands, args.lattice_type)
+    mystrands = cadnano2_to_xy(mystrands, template_data, args.lattice_type)
     # Get the edits
-    mystrands = calc_gradients(mystrands, theta=args.angle)
+    mystrands = calc_gradients(mystrands, theta=int(args.angle))
 
     bendstarts = [int(args.bend_start)]
-
     for bst in bendstarts:
-        for strand in mystrands.keys():
-            strandidx = strandnum2idx(template_data, strand['num'])
-            for pos in distro(args.bend_length, bst, abs(strand['grad'])):
+        for strand in mystrands.values():
+            strandidx = strandnum2idx(template_data, strand['strandnum'])
+            for pos in distro(int(args.bend_length), bst, abs(strand['grad'])):
                 if strand['grad'] < 0: # deletions
                     template_data = deletebase(template_data, strandidx, pos)
                 else: # insertions
                     template_data = insertbase(template_data, strandidx, pos)
 
-    datatojson(mystrands, args.output_filename)
+    datatojson(template_data, args.output_filename)
 
 if __name__ == "__main__":
     main()
-    # Set where bends will start
-    bendstarts = [211]
-
-    # Set the number of edits to be placed in each strand
-    # Keys are strand indices. Values are number of edits
-    # Edits: (-) are deletions, (+) are insertions
-    edits = {0: 12, 1: 12, 2: -12, 3: -12}
-    N = 90
-    for bst in bendstarts:
-        for strand in edits.keys():
-            for pos in distro(N, bst, abs(edits[strand])):
-                if edits[strand] < 0:  # deletions
-                    new_data = deletebase(new_data, strand, pos)
-                else:  # insertions
-                    new_data = insertbase(new_data, strand, pos)
-        
-    datatojson(new_data, "output/4hb-512-180-N90.json")
