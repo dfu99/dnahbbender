@@ -186,7 +186,7 @@ def plot_lattice(mystrands):
     # Show the plot
     plt.show()
 
-def main():
+def bender():
     # Create parser
     parser = argparse.ArgumentParser(description="Adding insertions and deletions into cadnano2 json file to bend a DNA bundle")
 
@@ -222,6 +222,3 @@ def main():
                     template_data = insertbase(template_data, strandidx, pos)
 
     datatojson(template_data, args.output_filename)
-
-if __name__ == "__main__":
-    main()
