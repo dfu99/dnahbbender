@@ -14,6 +14,8 @@ import json
 import numpy as np
 from matplotlib import pyplot as plt
 import argparse
+from .editor import insertbase, deletebase
+from .shiftcorrect import shiftcorrect
 
 AXIAL_RISE = 0.332
 INTERHELICAL_DISTANCE = 2.6
@@ -25,30 +27,6 @@ def strandnum2idx(data, strandnum):
     for idx, strand in enumerate(data['vstrands']):
         if strand['num'] == strandnum:
             return idx
-
-def insertbase(data, strandidx, loc):
-    """
-    Edits a strand's 'loop' key to add insertions to the strand
-    :param data: json data of DNA bundle
-    :param strandidx: The strand index
-    :param loc: The index of the base
-    :return: json-formated dict with modified data
-    """
-    data['vstrands'][strandidx]['loop'][loc] = 1  # default 1 insertion
-    return data
-
-
-def deletebase(data, strandidx, loc):
-    """
-    Edits a strand's 'skip' key to add deletions to the strand
-    :param data: json data of DNA bundle
-    :param strandidx: The strand index of the base
-    :param loc: The index of the base
-    :return: json-formated dict with modified data
-    """
-    data['vstrands'][strandidx]['skip'][loc] = -1
-    return data
-
 
 def jsondatafromfile(filename):
     """
@@ -159,6 +137,9 @@ def cadnano2_to_xy(mystrands, template_data, lattice_type="hc"):
     return mystrands
 
 def plot_lattice(mystrands):
+    """
+    Plots the lattice of the DNA bundle
+    """
     # Sample data structure
     data = mystrands
     # Create a new figure and axis
@@ -191,34 +172,36 @@ def bender():
     parser = argparse.ArgumentParser(description="Adding insertions and deletions into cadnano2 json file to bend a DNA bundle")
 
     # Add arguments
-    parser.add_argument("filename", help="Input filename of cadnano2 json file")
-    parser.add_argument("output_filename", help="Output filename of cadnano2 json file")
-    parser.add_argument("lattice_type", help="Type of lattice, honeycomb or square")
-    parser.add_argument("angle", help="Desired bend angle")
-    parser.add_argument("bend_length", help="Length of bundle to add insertions/deletions")
-    parser.add_argument("bend_start", help="Column ID of the first base in the bend")
+    parser.add_argument("-f", "--file", help="Input filename of cadnano2 json file")
+    parser.add_argument("-o", "--out", default="output.json", help="Output filename of cadnano2 json file")
+    parser.add_argument("-lt", "--lattice", help="Type of lattice, honeycomb or square")
+    parser.add_argument("-a", "--angle", help="Desired bend angle")
+    parser.add_argument("-l", "--len", help="Length of bundle to add insertions/deletions")
+    parser.add_argument("-s", "--start", help="Column ID of the first base in the bend")
 
     # Parse arguments
     args = parser.parse_args()
 
     # Load the template data
-    template_data = jsondatafromfile(args.filename)
+    template_data = jsondatafromfile(args.file)
 
     # Create the dictionary of strand positions
     mystrands = create_strands(template_data)
     # Convert the cadnano2 coordinates to x-y coordinates
-    mystrands = cadnano2_to_xy(mystrands, template_data, args.lattice_type)
+    mystrands = cadnano2_to_xy(mystrands, template_data, args.lattice)
     # Get the edits
     mystrands = calc_gradients(mystrands, theta=int(args.angle))
 
-    bendstarts = [int(args.bend_start)]
+    bendstarts = [int(args.start)]
     for bst in bendstarts:
         for strand in mystrands.values():
             strandidx = strandnum2idx(template_data, strand['strandnum'])
-            for pos in distro(int(args.bend_length), bst, abs(strand['grad'])):
+            for pos in distro(int(args.len), bst, abs(strand['grad'])):
                 if strand['grad'] < 0: # deletions
                     template_data = deletebase(template_data, strandidx, pos)
                 else: # insertions
                     template_data = insertbase(template_data, strandidx, pos)
 
-    datatojson(template_data, args.output_filename)
+    template_data = shiftcorrect(template_data)
+
+    datatojson(template_data, args.out)
