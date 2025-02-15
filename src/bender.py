@@ -178,6 +178,7 @@ def bender():
     parser.add_argument("-a", "--angle", help="Desired bend angle")
     parser.add_argument("-l", "--len", help="Length of bundle to add insertions/deletions")
     parser.add_argument("-s", "--start", help="Column ID of the first base in the bend")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows shift corrections")
 
     # Parse arguments
     args = parser.parse_args()
@@ -191,6 +192,9 @@ def bender():
     mystrands = cadnano2_to_xy(mystrands, template_data, args.lattice)
     # Get the edits
     mystrands = calc_gradients(mystrands, theta=int(args.angle))
+    print("Applying edits:")
+    for v in mystrands.values():
+        print("\t*Strand:", v['strandnum'], "Edits:", v['grad'])
 
     bendstarts = [int(args.start)]
     for bst in bendstarts:
@@ -202,6 +206,6 @@ def bender():
                 else: # insertions
                     template_data = insertbase(template_data, strandidx, pos)
 
-    template_data = shiftcorrect(template_data)
+    template_data = shiftcorrect(template_data, verbose=args.verbose)
 
     datatojson(template_data, args.out)

@@ -17,7 +17,7 @@ def getlength(data):
     """
     return len(data['vstrands'][0]['scaf'])
 
-def getcrossoverplane(data, pos, numstrands):
+def getcrossoverplane(data, pos, numstrands, verbose=False):
     """
     Checks if crossovers are placed in a cross-section of the bundles
     :param data: json data
@@ -31,7 +31,8 @@ def getcrossoverplane(data, pos, numstrands):
         connectingstrands.append(data['vstrands'][strandnum]['stap'][pos][0])
         connectingstrands.append(data['vstrands'][strandnum]['stap'][pos][2])
         if any(x not in [-1, data['vstrands'][strandnum]['num']] for x in connectingstrands):
-            print("Crossover plane @ ", pos)
+            if verbose:
+                print("Shifting edits away from a crossover plane @ ", pos)
             return True
     return False
 
@@ -52,7 +53,7 @@ def getshiftdirection(data, pos, numstrands):
             return True  # Crossover is to the right, shift to the left
     return False  # Crossover is to the left, shift to the right
 
-def shiftcorrect(data):
+def shiftcorrect(data, verbose=False):
     """
     Shifts insertions and deletions off crossover planes
     :param data: cadnano2 format json data
@@ -72,7 +73,7 @@ def shiftcorrect(data):
             # check if there is an edit
             if row['skip'][pos] == -1 or row['loop'][pos] == 1:
                 # check if we're on a crossover plane
-                if getcrossoverplane(data, pos, number_of_strands):
+                if getcrossoverplane(data, pos, number_of_strands, verbose):
                     # check which direction to shift
                     if getshiftdirection(data, pos, number_of_strands):
                         # shift left
