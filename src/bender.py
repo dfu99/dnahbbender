@@ -117,9 +117,13 @@ def cadnano2_to_xy(mystrands, template_data, lattice_type="hc"):
     while num_defined < len(template_data['vstrands']):
         if lattice_type == "hc":
             mod_key = (curr_key[0] + curr_key[1]) % 2
+            # The offsets correspond to the later 'directions' indices
             offsets = {0: [[0, -5.2], [0, 2.6], [2.25, -1.3], [-2.25, -1.3]], 1: [[0, -2.6], [0, 5.2], [2.25, 1.3], [-2.25, 1.3]]}
         elif lattice_type == "sq":
             mod_key = 0
+            # The offsets correspond to the later 'directions' indices
+            # For square lattice, it is straightforwardly the interhelical distance
+            # Note: x-y and position have swapped +/- orientation
             offsets = {0: [[0, -2.6], [0, 2.6], [2.6, 0], [-2.6, 0]]}
         else:
             raise ValueError("Invalid lattice type. Use 'hc' for honeycomb or 'sq' for square.")
@@ -172,12 +176,13 @@ def bender():
     parser = argparse.ArgumentParser(description="Adding insertions and deletions into cadnano2 json file to bend a DNA bundle")
 
     # Add arguments
-    parser.add_argument("-f", "--file", help="Input filename of cadnano2 json file")
+    parser.add_argument("file", help="Input filename of cadnano2 json file")
     parser.add_argument("-o", "--out", default="output.json", help="Output filename of cadnano2 json file")
     parser.add_argument("-lt", "--lattice", help="Type of lattice, honeycomb or square")
     parser.add_argument("-a", "--angle", help="Desired bend angle")
     parser.add_argument("-l", "--len", help="Length of bundle to add insertions/deletions")
     parser.add_argument("-s", "--start", help="Column ID of the first base in the bend")
+    parser.add_argument("-x", "--axis", type=int, choices=[0, 1], default=1, help="Axis of curvature, 0 for x, 1 for y")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="Shows shift corrections")
 
     # Parse arguments
@@ -191,7 +196,7 @@ def bender():
     # Convert the cadnano2 coordinates to x-y coordinates
     mystrands = cadnano2_to_xy(mystrands, template_data, args.lattice)
     # Get the edits
-    mystrands = calc_gradients(mystrands, theta=int(args.angle))
+    mystrands = calc_gradients(mystrands, align_axis=int(args.axis), theta=int(args.angle))
     print("Applying edits:")
     for v in mystrands.values():
         print("\t*Strand:", v['strandnum'], "Edits:", v['grad'])
