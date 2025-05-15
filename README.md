@@ -61,7 +61,7 @@ Add our breakpoints...
 
 Note that the endpoints of the structure are connected.
 
-<img src="/EXAMPLES/walkthrough/edge1.png" alt="Edge 1" width="50%" /><img src="/EXAMPLES/walkthrough/edge2.png" alt="Edge 2" width="50%" />
+<img src="/EXAMPLES/walkthrough/edge1.png" alt="Edge 1" height="33%" /> - ... - <img src="/EXAMPLES/walkthrough/edge2.png" alt="Edge 2" height="33%" />
 
 We now run the script, three times, once to make each corner.
 
