@@ -33,7 +33,7 @@ The repository also includes an assortment of previously created or processed te
 CanDo: https://cando-dna-origami.org/
 
 ### TODO: 
-- Add an input parameter for rotating the desired normal plane axis.
+- ~Add an input parameter for rotating the desired normal plane axis.~ Added!
 - Flag some known structural issues (overly dense insertion/deletion gradient)
 
 ### References
